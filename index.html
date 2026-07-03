@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>개인 연차 관리 프로그램</title>
+    <title>나의 개인 연차 관리 매니저</title>
     <style>
         * {
             box-sizing: border-box;
@@ -42,6 +42,7 @@
             font-size: 14px;
             margin-bottom: 25px;
             font-weight: 500;
+            word-break: keep-all;
         }
 
         /* 4열 대시보드 스타일 */
@@ -121,6 +122,11 @@
             flex-wrap: wrap;
         }
 
+        .form-group > label {
+            font-size: 14px;
+            color: #475569;
+        }
+
         input, select, button {
             padding: 10px 14px;
             border-radius: 6px;
@@ -146,26 +152,12 @@
             background: #1d4ed8;
         }
 
-        .btn-edit {
-            background: #0ea5e9;
-        }
-        .btn-edit:hover {
-            background: #0284c7;
-        }
-
-        .btn-danger {
-            background: #dc2626;
-        }
-        .btn-danger:hover {
-            background: #b91c1c;
-        }
-
-        .btn-success {
-            background: #16a34a;
-        }
-        .btn-success:hover {
-            background: #15803d;
-        }
+        .btn-edit { background: #0ea5e9; }
+        .btn-edit:hover { background: #0284c7; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-success { background: #16a34a; }
+        .btn-success:hover { background: #15803d; }
 
         /* 리스트 테이블 레이아웃 */
         .history-grid {
@@ -175,15 +167,22 @@
             margin-top: 25px;
         }
 
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto; /* 모바일에서 표가 너무 크면 깨지지 않고 스크롤되도록 방지 */
+            -webkit-overflow-scrolling: touch;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
             font-size: 14px;
+            min-width: 500px; /* 테이블이 너무 쪼개지는 것 방지 */
         }
 
         th, td {
-            padding: 12px;
+            padding: 12px 8px;
             text-align: center;
             border-bottom: 1px solid #e2e8f0;
         }
@@ -215,10 +214,11 @@
         /* 상태 배지 */
         .badge {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 4px 6px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
+            white-space: nowrap;
         }
         .badge.upcoming {
             background-color: #eff6ff;
@@ -237,22 +237,94 @@
         .d-day {
             font-weight: bold;
             color: #ea580c;
-            margin-left: 5px;
+            margin-left: 2px;
+            margin-right: 2px;
         }
         .action-btns {
             display: flex;
-            gap: 5px;
+            gap: 4px;
             justify-content: center;
+        }
+
+        /* ========================================================
+           📱 모바일 반응형 스타일 최적화 (화면 폭 768px 이하일 때)
+           ======================================================== */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            /* 대시보드를 2열 2줄로 배치 */
+            .dashboard {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .card {
+                padding: 12px 5px;
+            }
+
+            .card h3 {
+                font-size: 12px;
+            }
+
+            .card p {
+                font-size: 18px;
+            }
+
+            /* 백업 버튼 정렬 */
+            .backup-section {
+                justify-content: center;
+                width: 100%;
+            }
+            .btn-backup {
+                flex: 1;
+                text-align: center;
+            }
+
+            /* 입력 폼 요소들을 가득 차게 정렬 */
+            .form-group {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .form-group > label {
+                margin-left: 0 !important;
+                margin-top: 4px;
+            }
+
+            input, select, button {
+                width: 100% !important;
+                text-align: center;
+            }
+
+            /* 테이블 내 글자 크기 조정 */
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 10px 5px;
+            }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📅 JIAN 개인 연차 관리 프로그램</h1>
+    <h1>📅 나의 연차 관리 매니저</h1>
     <div class="season-info" id="current-season-text">연차 산정 기간: 계산 중...</div>
 
-    <!-- 1. 4단 연차 현황판 -->
+    <!-- 1. 4단 연차 현황판 (모바일 2x2 변경됨) -->
     <div class="dashboard">
         <div class="card total">
             <h3>이번 시즌 총 연차</h3>
@@ -272,10 +344,10 @@
         </div>
     </div>
 
-    <!-- [신규] 백업 및 복원 컨트롤 버튼 영역 -->
+    <!-- 백업 및 복원 컨트롤 버튼 영역 -->
     <div class="backup-section">
-        <button class="btn-backup" onclick="exportData()">💾 데이터 백업하기</button>
-        <button class="btn-backup" onclick="document.getElementById('import-file').click()">📂 데이터 복원하기</button>
+        <button class="btn-backup" onclick="exportData()">💾 백업</button>
+        <button class="btn-backup" onclick="document.getElementById('import-file').click()">📂 복원</button>
         <input type="file" id="import-file" accept=".txt" style="display: none;" onchange="importData(event)">
     </div>
 
@@ -283,11 +355,11 @@
     <div class="settings-section">
         <div class="section-title">⚙️ 연차 기본 정보 설정</div>
         <div class="form-group">
-            <label for="total-leave-input" style="font-size: 14px; color: #475569;">매년 부여 개수:</label>
-            <input type="number" id="total-leave-input" min="0" max="100" step="0.5" placeholder="예: 15" style="width: 100px;">
+            <label for="total-leave-input">매년 부여 개수:</label>
+            <input type="number" id="total-leave-input" min="0" max="100" step="0.5" placeholder="예: 15">
             
-            <label for="reset-date-input" style="font-size: 14px; color: #475569; margin-left: 10px;">입사일(리셋일):</label>
-            <input type="text" id="reset-date-input" placeholder="MM-DD 형식 (예: 08-04)" style="width: 130px;" maxlength="5">
+            <label for="reset-date-input">입사일(리셋일):</label>
+            <input type="text" id="reset-date-input" placeholder="MM-DD 형식 (예: 08-04)" maxlength="5">
             
             <button onclick="saveSettings()">설정 및 저장</button>
         </div>
@@ -304,44 +376,48 @@
                 <option value="0.5">오후반차 (0.5)</option>
                 <option value="0.25">반반차 (0.25)</option>
             </select>
-            <input type="text" id="leave-memo" placeholder="사유 (예: 여름휴가, 병원)" style="flex-grow: 1;">
+            <input type="text" id="leave-memo" placeholder="사유 (예: 여름휴가, 병원)">
             <button onclick="addLeaveRecord()">등록하기</button>
         </div>
     </div>
 
-    <!-- 4. 내역 세션 (예정된 연차 / 사용한 연차) -->
+    <!-- 4. 내역 세션 (모바일 스크롤 랩핑 적용) -->
     <div class="history-grid">
         <div class="history-section">
             <div class="section-title" style="color: #2563eb;">🚀 다가오는 예정된 연차</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">날짜</th>
-                        <th style="width: 15%;">종류</th>
-                        <th style="width: 10%;">차감</th>
-                        <th style="width: 45%;">사유 및 상태</th>
-                        <th style="width: 15%;">관리</th>
-                    </tr>
-                </thead>
-                <tbody id="upcoming-tbody"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 15%;">종류</th>
+                            <th style="width: 10%;">차감</th>
+                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 15%;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="upcoming-tbody"></tbody>
+                </table>
+            </div>
             <div id="no-upcoming-msg" class="no-data">예정된 휴가 계획이 없습니다. 푹 쉬어보세요!</div>
         </div>
 
         <div class="history-section">
-            <div class="section-title" style="color: #475569;">📋 이미 지나간 사용 내역 (이전 시즌 포함)</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">날짜</th>
-                        <th style="width: 15%;">종류</th>
-                        <th style="width: 10%;">차감</th>
-                        <th style="width: 45%;">사유 및 상태</th>
-                        <th style="width: 15%;">관리</th>
-                    </tr>
-                </thead>
-                <tbody id="past-tbody"></tbody>
-            </table>
+            <div class="section-title" style="color: #475569;">📋 이미 지나간 사용 내역</div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 15%;">종류</th>
+                            <th style="width: 10%;">차감</th>
+                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 15%;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="past-tbody"></tbody>
+                </table>
+            </div>
             <div id="no-past-msg" class="no-data">과거에 사용한 연차 내역이 없습니다.</div>
         </div>
     </div>
@@ -424,17 +500,11 @@
         document.getElementById('display-final').innerText = `${finalExpectedRemain}개`;
     }
 
-    // [신규 로직] 데이터 백업 (내보내기) 함수
     function exportData() {
-        const dataObj = {
-            totalLeave: totalLeave,
-            resetDateStr: resetDateStr,
-            leaveRecords: leaveRecords
-        };
+        const dataObj = { totalLeave: totalLeave, resetDateStr: resetDateStr, leaveRecords: leaveRecords };
         const dataStr = JSON.stringify(dataObj, null, 2);
         const blob = new Blob([dataStr], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
-        
         const link = document.createElement("a");
         const todayStr = new Date().toISOString().split('T')[0];
         link.href = url;
@@ -443,7 +513,6 @@
         URL.revokeObjectURL(url);
     }
 
-    // [신규 로직] 데이터 복원 (가져오기) 함수
     function importData(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -472,11 +541,11 @@
                     alert("올바른 연차 데이터 파일이 아닙니다.");
                 }
             } catch (err) {
-                alert("파일을 읽는 중 오류가 발생했습니다. 올바른 텍스트 파일인지 확인해 주세요.");
+                alert("파일을 읽는 중 오류가 발생했습니다.");
             }
         };
         reader.readAsText(file);
-        event.target.value = ''; // 파일 인풋 초기화
+        event.target.value = '';
     }
 
     function addLeaveRecord() {
@@ -491,18 +560,10 @@
             return;
         }
 
-        const newRecord = {
-            id: Date.now(),
-            date: dateInput,
-            type: typeText,
-            amount: amount,
-            memo: memo
-        };
-
+        const newRecord = { id: Date.now(), date: dateInput, type: typeText, amount: amount, memo: memo };
         leaveRecords.push(newRecord);
         sortRecords();
         saveAndReload();
-        
         document.getElementById('leave-date').value = '';
         document.getElementById('leave-memo').value = '';
     }
@@ -524,15 +585,8 @@
         }
     }
 
-    function startEdit(id) {
-        editingId = id;
-        renderHistory();
-    }
-
-    function cancelEdit() {
-        editingId = null;
-        renderHistory();
-    }
+    function startEdit(id) { editingId = id; renderHistory(); }
+    function cancelEdit() { editingId = null; renderHistory(); }
 
     function saveEdit(id) {
         const row = document.getElementById(`row-${id}`);
@@ -562,7 +616,6 @@
     function renderHistory() {
         const upcomingTbody = document.getElementById('upcoming-tbody');
         const pastTbody = document.getElementById('past-tbody');
-        
         upcomingTbody.innerHTML = '';
         pastTbody.innerHTML = '';
 
@@ -600,8 +653,8 @@
                     <td><input type="text" class="table-input edit-memo" value="${record.memo}"></td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-success" style="padding: 4px 8px; font-size: 12px;" onclick="saveEdit(${record.id})">저장</button>
-                            <button style="padding: 4px 8px; font-size: 12px; background: #64748b;" onclick="cancelEdit()">취소</button>
+                            <button class="btn-success" style="padding: 4px 6px; font-size: 11px;" onclick="saveEdit(${record.id})">저장</button>
+                            <button style="padding: 4px 6px; font-size: 11px; background: #64748b;" onclick="cancelEdit()">취소</button>
                         </div>
                     </td>
                 `;
@@ -617,34 +670,34 @@
                         <td><b style="color: #2563eb;">${record.date}</b></td>
                         <td>${record.type}</td>
                         <td><strong>${record.amount}</strong></td>
-                        <td style="text-align: left; padding-left: 20px;">
+                        <td style="text-align: left; padding-left: 10px;">
                             <span class="badge upcoming">예정</span>
                             <span class="d-day">${dDayText}</span> | ${record.memo}
                         </td>
                         <td>
                             <div class="action-btns">
-                                <button class="btn-edit" style="padding: 4px 8px; font-size: 12px;" onclick="startEdit(${record.id})">수정</button>
-                                <button class="btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteRecord(${record.id})">취소</button>
+                                <button class="btn-edit" style="padding: 4px 6px; font-size: 11px;" onclick="startEdit(${record.id})">수정</button>
+                                <button class="btn-danger" style="padding: 4px 6px; font-size: 11px;" onclick="deleteRecord(${record.id})">취소</button>
                             </div>
                         </td>
                     `;
                     upcomingTbody.appendChild(tr);
                 } else {
                     const badgeHtml = isInCurrentSeason 
-                        ? `<span class="badge past">사용 완료</span>` 
-                        : `<span class="badge out-of-season">이전 시즌</span>`;
+                        ? `<span class="badge past">완료</span>` 
+                        : `<span class="badge out-of-season">이전</span>`;
 
                     tr.innerHTML = `
                         <td style="color: #64748b;">${record.date}</td>
                         <td>${record.type}</td>
                         <td>${record.amount}</td>
-                        <td style="text-align: left; padding-left: 20px; color: #64748b;">
+                        <td style="text-align: left; padding-left: 10px; color: #64748b;">
                             ${badgeHtml} | ${record.memo}
                         </td>
                         <td>
                             <div class="action-btns">
-                                <button class="btn-edit" style="padding: 4px 8px; font-size: 12px; opacity: 0.7;" onclick="startEdit(${record.id})">수정</button>
-                                <button class="btn-danger" style="padding: 4px 8px; font-size: 12px; opacity: 0.6;" onclick="deleteRecord(${record.id})">삭제</button>
+                                <button class="btn-edit" style="padding: 4px 6px; font-size: 11px; opacity: 0.7;" onclick="startEdit(${record.id})">수정</button>
+                                <button class="btn-danger" style="padding: 4px 6px; font-size: 11px; opacity: 0.6;" onclick="deleteRecord(${record.id})">삭제</button>
                             </div>
                         </td>
                     `;
