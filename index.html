@@ -183,7 +183,7 @@
         .btn-success { background: #16a34a; }
         .btn-success:hover { background: #15803d; }
 
-        /* 리스트 테이블 레이아웃 */
+        /* 리스트 테이블 레이아웃 (PC용) */
         .history-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -193,8 +193,6 @@
 
         .table-responsive {
             width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
         }
 
         table {
@@ -202,7 +200,6 @@
             border-collapse: collapse;
             margin-top: 10px;
             font-size: 14px;
-            min-width: 500px;
         }
 
         th, td {
@@ -270,6 +267,14 @@
             justify-content: center;
         }
 
+        /* 모바일 전용 카드 컨테이너 초기 숨김 */
+        .mobile-card-list {
+            display: none;
+        }
+
+        /* ========================================================
+           📱 모바일 반응형 스타일 최적화 (화면 폭 768px 이하일 때)
+           ======================================================== */
         @media (max-width: 768px) {
             body { padding: 15px 10px; }
             .container { padding: 15px; }
@@ -281,16 +286,73 @@
             .form-group { flex-direction: column; align-items: stretch; gap: 8px; }
             .form-group > label { margin-left: 0 !important; margin-top: 4px; }
             input, select, button { width: 100% !important; text-align: center; }
-            table { font-size: 12px; }
-            th, td { padding: 10px 5px; }
             .mobile-import-box { flex-direction: column; }
+
+            /* 테이블 완전 숨김 처리 */
+            .table-responsive {
+                display: none;
+            }
+
+            /* 모바일 전용 카드 뷰 활성화 */
+            .mobile-card-list {
+                display: block;
+                margin-top: 10px;
+            }
+
+            .mobile-item-card {
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 14px;
+                margin-bottom: 10px;
+            }
+
+            .mobile-item-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+                border-bottom: 1px dashed #e2e8f0;
+                padding-bottom: 6px;
+            }
+
+            .mobile-item-date {
+                font-weight: bold;
+                font-size: 15px;
+                color: #0f172a;
+            }
+
+            .mobile-item-body {
+                font-size: 13.5px;
+                color: #334155;
+                margin-bottom: 10px;
+                line-height: 1.5;
+            }
+
+            .mobile-item-actions {
+                display: flex;
+                gap: 6px;
+            }
+            
+            .mobile-item-actions button {
+                padding: 6px 10px;
+                font-size: 12px;
+                flex: 1;
+            }
+
+            /* 모바일 수정 모드 입력창 스타일 */
+            .mobile-edit-box {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📅 지안 개인 연차 관리</h1>
+    <h1>📅 지안전용 연차 관리</h1>
     <div class="season-info" id="current-season-text">연차 산정 기간: 계산 중...</div>
 
     <!-- 1. 4단 연차 현황판 -->
@@ -313,7 +375,7 @@
         </div>
     </div>
 
-    <!-- 백업 및 복원 컨트롤 버튼 영역 (모바일 텍스트 입력창 추가) -->
+    <!-- 백업 및 복원 컨트롤 버튼 영역 -->
     <div class="backup-section">
         <div class="backup-btns">
             <button class="btn-backup" onclick="exportData()">💾 백업 파일 다운로드</button>
@@ -356,10 +418,13 @@
         </div>
     </div>
 
-    <!-- 4. 내역 세션 -->
+    <!-- 4. 내역 세션 (PC 테이블 뷰 & 모바일 카드 뷰 동시 지원) -->
     <div class="history-grid">
+        <!-- 다가오는 연차 영역 -->
         <div class="history-section">
             <div class="section-title" style="color: #2563eb;">🚀 다가오는 예정된 연차</div>
+            
+            <!-- PC용 뷰 -->
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -374,11 +439,18 @@
                     <tbody id="upcoming-tbody"></tbody>
                 </table>
             </div>
+            
+            <!-- 모바일용 뷰 -->
+            <div class="mobile-card-list" id="upcoming-mobile-list"></div>
+            
             <div id="no-upcoming-msg" class="no-data">예정된 휴가 계획이 없습니다. 푹 쉬어보세요!</div>
         </div>
 
+        <!-- 지나간 사용 내역 영역 -->
         <div class="history-section">
             <div class="section-title" style="color: #475569;">📋 이미 지나간 사용 내역</div>
+            
+            <!-- PC용 뷰 -->
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -393,6 +465,10 @@
                     <tbody id="past-tbody"></tbody>
                 </table>
             </div>
+
+            <!-- 모바일용 뷰 -->
+            <div class="mobile-card-list" id="past-mobile-list"></div>
+
             <div id="no-past-msg" class="no-data">과거에 사용한 연차 내역이 없습니다.</div>
         </div>
     </div>
@@ -488,7 +564,6 @@
         URL.revokeObjectURL(url);
     }
 
-    // 파일 객체 파싱 통합 함수
     function processParsedData(parsedData) {
         if (parsedData.totalLeave !== undefined && parsedData.resetDateStr && Array.isArray(parsedData.leaveRecords)) {
             if (confirm("기존 연차 데이터를 지우고 새 데이터로 덮어씌우시겠습니까?")) {
@@ -513,7 +588,6 @@
         return false;
     }
 
-    // 기존 파일로 가져오기 함수
     function importData(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -531,14 +605,12 @@
         event.target.value = '';
     }
 
-    // [신규] 모바일용 텍스트 복사 붙여넣기 복원 함수
     function importFromText() {
         const textInput = document.getElementById('mobile-text-input').value.trim();
         if (!textInput) {
             alert("복사한 백업 텍스트 내용을 먼저 입력창에 붙여넣어 주세요!");
             return;
         }
-
         try {
             const parsedData = JSON.parse(textInput);
             const success = processParsedData(parsedData);
@@ -546,7 +618,7 @@
                 document.getElementById('mobile-text-input').value = '';
             }
         } catch (err) {
-            alert("텍스트 형식이 잘못되었습니다. 백업 파일 안의 전체 글자를 그대로 복사했는지 확인해 주세요.");
+            alert("텍스트 형식이 잘못되었습니다.");
         }
     }
 
@@ -590,13 +662,24 @@
     function startEdit(id) { editingId = id; renderHistory(); }
     function cancelEdit() { editingId = null; renderHistory(); }
 
-    function saveEdit(id) {
-        const row = document.getElementById(`row-${id}`);
-        const newDate = row.querySelector('.edit-date').value;
-        const typeSelect = row.querySelector('.edit-type');
-        const newTypeText = typeSelect.options[typeSelect.selectedIndex].text.split(' ')[0];
-        const newAmount = parseFloat(typeSelect.value);
-        const newMemo = row.querySelector('.edit-memo').value.trim() || '없음';
+    function saveEdit(id, isMobile = false) {
+        let newDate, newTypeText, newAmount, newMemo;
+        
+        if(isMobile) {
+            const container = document.getElementById(`m-row-${id}`);
+            newDate = container.querySelector('.m-edit-date').value;
+            const typeSelect = container.querySelector('.m-edit-type');
+            newTypeText = typeSelect.options[typeSelect.selectedIndex].text.split(' ')[0];
+            newAmount = parseFloat(typeSelect.value);
+            newMemo = container.querySelector('.m-edit-memo').value.trim() || '없음';
+        } else {
+            const row = document.getElementById(`row-${id}`);
+            newDate = row.querySelector('.edit-date').value;
+            const typeSelect = row.querySelector('.edit-type');
+            newTypeText = typeSelect.options[typeSelect.selectedIndex].text.split(' ')[0];
+            newAmount = parseFloat(typeSelect.value);
+            newMemo = row.querySelector('.edit-memo').value.trim() || '없음';
+        }
 
         if (!newDate) {
             alert('날짜를 선택해 주세요.');
@@ -616,10 +699,17 @@
     }
 
     function renderHistory() {
+        // 테이블 엘리먼트 초기화
         const upcomingTbody = document.getElementById('upcoming-tbody');
         const pastTbody = document.getElementById('past-tbody');
         upcomingTbody.innerHTML = '';
         pastTbody.innerHTML = '';
+
+        // 모바일 카드 엘리먼트 초기화
+        const upcomingMobileList = document.getElementById('upcoming-mobile-list');
+        const pastMobileList = document.getElementById('past-mobile-list');
+        upcomingMobileList.innerHTML = '';
+        pastMobileList.innerHTML = '';
 
         const today = new Date();
         today.setHours(0,0,0,0);
@@ -633,14 +723,15 @@
             const isInCurrentSeason = (recordDate >= season.start && recordDate <= season.end);
             recordDate.setHours(0,0,0,0);
 
-            const tr = document.createElement('tr');
-            tr.id = `row-${record.id}`;
-
             const isUpcoming = recordDate >= today;
             if (isUpcoming) upcomingCount++; else pastCount++;
 
-            const getSelectHtml = (currentAmount) => `
-                <select class="table-input edit-type">
+            // --- [1] PC용 테이블 뷰 빌드 ---
+            const tr = document.createElement('tr');
+            tr.id = `row-${record.id}`;
+
+            const getSelectHtml = (currentAmount, prefix="") => `
+                <select class="table-input ${prefix}edit-type">
                     <option value="1" ${currentAmount === 1 ? 'selected' : ''}>종일 (1.0)</option>
                     <option value="0.5" ${currentAmount === 0.5 ? 'selected' : ''}>반차 (0.5)</option>
                     <option value="0.25" ${currentAmount === 0.25 ? 'selected' : ''}>반반차 (0.25)</option>
@@ -655,7 +746,7 @@
                     <td><input type="text" class="table-input edit-memo" value="${record.memo}"></td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn-success" style="padding: 4px 6px; font-size: 11px;" onclick="saveEdit(${record.id})">저장</button>
+                            <button class="btn-success" style="padding: 4px 6px; font-size: 11px;" onclick="saveEdit(${record.id}, false)">저장</button>
                             <button style="padding: 4px 6px; font-size: 11px; background: #64748b;" onclick="cancelEdit()">취소</button>
                         </div>
                     </td>
@@ -706,8 +797,78 @@
                     pastTbody.insertBefore(tr, pastTbody.firstChild);
                 }
             }
+
+            // --- [2] 모바일용 카드 뷰 빌드 ---
+            const mDiv = document.createElement('div');
+            mDiv.className = 'mobile-item-card';
+            mDiv.id = `m-row-${record.id}`;
+
+            if (editingId === record.id) {
+                mDiv.innerHTML = `
+                    <div class="mobile-edit-box">
+                        <label style="font-size:12px; font-weight:bold;">날짜 변경</label>
+                        <input type="date" class="table-input m-edit-date" value="${record.date}">
+                        <label style="font-size:12px; font-weight:bold;">종류 변경</label>
+                        ${getSelectHtml(record.amount, "m-")}
+                        <label style="font-size:12px; font-weight:bold;">사유 변경</label>
+                        <input type="text" class="table-input m-edit-memo" value="${record.memo}">
+                        <div class="mobile-item-actions" style="margin-top:5px;">
+                            <button class="btn-success" onclick="saveEdit(${record.id}, true)">저장</button>
+                            <button style="background: #64748b;" onclick="cancelEdit()">취소</button>
+                        </div>
+                    </div>
+                `;
+                if (isUpcoming) upcomingMobileList.appendChild(mDiv);
+                else pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
+            } else {
+                if (isUpcoming) {
+                    const diffTime = recordDate - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const dDayText = diffDays === 0 ? "Today" : `D-${diffDays}`;
+
+                    mDiv.innerHTML = `
+                        <div class="mobile-item-header">
+                            <span class="mobile-item-date" style="color:#2563eb;">${record.date}</span>
+                            <div>
+                                <span class="badge upcoming">예정</span>
+                                <span class="d-day">${dDayText}</span>
+                            </div>
+                        </div>
+                        <div class="mobile-item-body">
+                            📢 <b>${record.type} (${record.amount}개 차감)</b><br>
+                            💬 사유: ${record.memo}
+                        </div>
+                        <div class="mobile-item-actions">
+                            <button class="btn-edit" onclick="startEdit(${record.id})">수정</button>
+                            <button class="btn-danger" onclick="deleteRecord(${record.id})">취소</button>
+                        </div>
+                    `;
+                    upcomingMobileList.appendChild(mDiv);
+                } else {
+                    const badgeHtml = isInCurrentSeason 
+                        ? `<span class="badge past">완료</span>` 
+                        : `<span class="badge out-of-season">이전 시즌</span>`;
+
+                    mDiv.innerHTML = `
+                        <div class="mobile-item-header">
+                            <span class="mobile-item-date" style="color:#64748b;">${record.date}</span>
+                            ${badgeHtml}
+                        </div>
+                        <div class="mobile-item-body" style="color:#64748b;">
+                            📢 <b>${record.type} (${record.amount}개 차감)</b><br>
+                            💬 사유: ${record.memo}
+                        </div>
+                        <div class="mobile-item-actions">
+                            <button class="btn-edit" style="opacity:0.8;" onclick="startEdit(${record.id})">수정</button>
+                            <button class="btn-danger" style="opacity:0.7;" onclick="deleteRecord(${record.id})">삭제</button>
+                        </div>
+                    `;
+                    pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
+                }
+            }
         });
 
+        // 데이터 공백 문구 동기화
         document.getElementById('no-upcoming-msg').style.display = upcomingCount === 0 ? 'block' : 'none';
         document.getElementById('no-past-msg').style.display = pastCount === 0 ? 'block' : 'none';
     }
