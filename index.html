@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>개인 연차 관리 프로그램</title>
+    <title>개인 연차 관리</title>
     <style>
         * {
             box-sizing: border-box;
@@ -81,19 +81,43 @@
 
         /* 백업/복원 섹션 스타일 */
         .backup-section {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 8px;
             margin-bottom: 20px;
+            border: 1px dashed #cbd5e1;
+        }
+
+        .backup-btns {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
         .btn-backup {
             background: #64748b;
-            font-size: 12px;
-            padding: 6px 12px;
+            font-size: 13px;
+            padding: 8px 12px;
+            flex: 1;
+            text-align: center;
         }
         .btn-backup:hover {
             background: #475569;
+        }
+
+        .mobile-import-box {
+            display: flex;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        .mobile-import-box input {
+            flex-grow: 1;
+            padding: 8px;
+            font-size: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
         }
 
         /* 설정 및 입력 폼 */
@@ -169,7 +193,7 @@
 
         .table-responsive {
             width: 100%;
-            overflow-x: auto; /* 모바일에서 표가 너무 크면 깨지지 않고 스크롤되도록 방지 */
+            overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
 
@@ -178,7 +202,7 @@
             border-collapse: collapse;
             margin-top: 10px;
             font-size: 14px;
-            min-width: 500px; /* 테이블이 너무 쪼개지는 것 방지 */
+            min-width: 500px;
         }
 
         th, td {
@@ -246,75 +270,20 @@
             justify-content: center;
         }
 
-        /* ========================================================
-           📱 모바일 반응형 스타일 최적화 (화면 폭 768px 이하일 때)
-           ======================================================== */
         @media (max-width: 768px) {
-            body {
-                padding: 15px 10px;
-            }
-
-            .container {
-                padding: 15px;
-            }
-
-            h1 {
-                font-size: 20px;
-            }
-
-            /* 대시보드를 2열 2줄로 배치 */
-            .dashboard {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-
-            .card {
-                padding: 12px 5px;
-            }
-
-            .card h3 {
-                font-size: 12px;
-            }
-
-            .card p {
-                font-size: 18px;
-            }
-
-            /* 백업 버튼 정렬 */
-            .backup-section {
-                justify-content: center;
-                width: 100%;
-            }
-            .btn-backup {
-                flex: 1;
-                text-align: center;
-            }
-
-            /* 입력 폼 요소들을 가득 차게 정렬 */
-            .form-group {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-
-            .form-group > label {
-                margin-left: 0 !important;
-                margin-top: 4px;
-            }
-
-            input, select, button {
-                width: 100% !important;
-                text-align: center;
-            }
-
-            /* 테이블 내 글자 크기 조정 */
-            table {
-                font-size: 12px;
-            }
-            
-            th, td {
-                padding: 10px 5px;
-            }
+            body { padding: 15px 10px; }
+            .container { padding: 15px; }
+            h1 { font-size: 20px; }
+            .dashboard { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .card { padding: 12px 5px; }
+            .card h3 { font-size: 12px; }
+            .card p { font-size: 18px; }
+            .form-group { flex-direction: column; align-items: stretch; gap: 8px; }
+            .form-group > label { margin-left: 0 !important; margin-top: 4px; }
+            input, select, button { width: 100% !important; text-align: center; }
+            table { font-size: 12px; }
+            th, td { padding: 10px 5px; }
+            .mobile-import-box { flex-direction: column; }
         }
     </style>
 </head>
@@ -324,7 +293,7 @@
     <h1>📅 지안 개인 연차 관리</h1>
     <div class="season-info" id="current-season-text">연차 산정 기간: 계산 중...</div>
 
-    <!-- 1. 4단 연차 현황판 (모바일 2x2 변경됨) -->
+    <!-- 1. 4단 연차 현황판 -->
     <div class="dashboard">
         <div class="card total">
             <h3>이번 시즌 총 연차</h3>
@@ -344,11 +313,17 @@
         </div>
     </div>
 
-    <!-- 백업 및 복원 컨트롤 버튼 영역 -->
+    <!-- 백업 및 복원 컨트롤 버튼 영역 (모바일 텍스트 입력창 추가) -->
     <div class="backup-section">
-        <button class="btn-backup" onclick="exportData()">💾 백업</button>
-        <button class="btn-backup" onclick="document.getElementById('import-file').click()">📂 복원</button>
-        <input type="file" id="import-file" accept=".txt" style="display: none;" onchange="importData(event)">
+        <div class="backup-btns">
+            <button class="btn-backup" onclick="exportData()">💾 백업 파일 다운로드</button>
+            <button class="btn-backup" style="background:#0284c7;" onclick="alert('폰에서 파일 선택이 안 되면 아래 텍스트창에 붙여넣어 주세요!'); document.getElementById('import-file').click()">📁 파일로 복원</button>
+            <input type="file" id="import-file" accept=".txt" style="display: none;" onchange="importData(event)">
+        </div>
+        <div class="mobile-import-box">
+            <input type="text" id="mobile-text-input" placeholder="모바일용: 복사한 텍스트를 여기에 붙여넣기">
+            <button style="background: #16a34a; font-size: 12px; padding: 8px 12px;" onclick="importFromText()">📋 텍스트로 복원</button>
+        </div>
     </div>
 
     <!-- 2. 기본 연차 설정 -->
@@ -381,7 +356,7 @@
         </div>
     </div>
 
-    <!-- 4. 내역 세션 (모바일 스크롤 랩핑 적용) -->
+    <!-- 4. 내역 세션 -->
     <div class="history-grid">
         <div class="history-section">
             <div class="section-title" style="color: #2563eb;">🚀 다가오는 예정된 연차</div>
@@ -513,6 +488,32 @@
         URL.revokeObjectURL(url);
     }
 
+    // 파일 객체 파싱 통합 함수
+    function processParsedData(parsedData) {
+        if (parsedData.totalLeave !== undefined && parsedData.resetDateStr && Array.isArray(parsedData.leaveRecords)) {
+            if (confirm("기존 연차 데이터를 지우고 새 데이터로 덮어씌우시겠습니까?")) {
+                totalLeave = parsedData.totalLeave;
+                resetDateStr = parsedData.resetDateStr;
+                leaveRecords = parsedData.leaveRecords;
+
+                localStorage.setItem('totalLeave', totalLeave);
+                localStorage.setItem('resetDateStr', resetDateStr);
+                localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
+
+                document.getElementById('total-leave-input').value = totalLeave;
+                document.getElementById('reset-date-input').value = resetDateStr;
+
+                saveAndReload();
+                alert("데이터가 완벽하게 복원되었습니다! 🎉");
+                return true;
+            }
+        } else {
+            alert("올바른 연차 데이터 형식이 아닙니다.");
+        }
+        return false;
+    }
+
+    // 기존 파일로 가져오기 함수
     function importData(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -521,31 +522,32 @@
         reader.onload = function(e) {
             try {
                 const parsedData = JSON.parse(e.target.result);
-                if (parsedData.totalLeave !== undefined && parsedData.resetDateStr && Array.isArray(parsedData.leaveRecords)) {
-                    if (confirm("파일의 데이터로 기존 연차 정보를 덮어씌우시겠습니까?")) {
-                        totalLeave = parsedData.totalLeave;
-                        resetDateStr = parsedData.resetDateStr;
-                        leaveRecords = parsedData.leaveRecords;
-
-                        localStorage.setItem('totalLeave', totalLeave);
-                        localStorage.setItem('resetDateStr', resetDateStr);
-                        localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
-
-                        document.getElementById('total-leave-input').value = totalLeave;
-                        document.getElementById('reset-date-input').value = resetDateStr;
-
-                        saveAndReload();
-                        alert("데이터 복원이 완료되었습니다!");
-                    }
-                } else {
-                    alert("올바른 연차 데이터 파일이 아닙니다.");
-                }
+                processParsedData(parsedData);
             } catch (err) {
                 alert("파일을 읽는 중 오류가 발생했습니다.");
             }
         };
         reader.readAsText(file);
         event.target.value = '';
+    }
+
+    // [신규] 모바일용 텍스트 복사 붙여넣기 복원 함수
+    function importFromText() {
+        const textInput = document.getElementById('mobile-text-input').value.trim();
+        if (!textInput) {
+            alert("복사한 백업 텍스트 내용을 먼저 입력창에 붙여넣어 주세요!");
+            return;
+        }
+
+        try {
+            const parsedData = JSON.parse(textInput);
+            const success = processParsedData(parsedData);
+            if(success) {
+                document.getElementById('mobile-text-input').value = '';
+            }
+        } catch (err) {
+            alert("텍스트 형식이 잘못되었습니다. 백업 파일 안의 전체 글자를 그대로 복사했는지 확인해 주세요.");
+        }
     }
 
     function addLeaveRecord() {
