@@ -1,14 +1,228 @@
+자바스크립트 코드를 변경한 후 화면이 아예 뜨지 않거나 연차 내역이 사라진 경우, 가장 흔하게 발생하는 원인은 기존 HTML 구조와의 ID 불일치 또는 스크립트 구문 오류(Syntax Error) 때문입니다.
+해결을 위해 가장 먼저 체크해 볼 2가지와 바로 복사해서 쓰실 수 있는 수정본을 안내해 드립니다.
+🔍 원인 분석 및 확인 방법
+ * 개발자 도구 콘솔(F12) 확인
+   * 브라우저에서 F12 키를 누른 뒤 Console(콘솔) 탭을 열어보세요.
+   * 빨간색 에러 메시지가 떠 있다면 해당 줄에서 자바스크립트 실행이 중단되어 화면이 안 뜨는 것입니다.
+ * saveAndReload() 호출 시점 문제
+   * 기존 HTML 코드의 버튼들(예: saveSettings(), addLeaveRecord())이 자바스크립트 내부 함수나 HTML Element ID(current-season-text 등)를 찾지 못해 전체 렌더링이 멈췄을 가능성이 높습니다.
+🛠️ 올바르게 작동하는 전체 HTML 코드
+아래 코드는 HTML 구조와 자바스크립트 시즌 선택 로직을 완벽하게 맞춘 통합 코드입니다. 기존 파일의 내용을 전부 지우고 아래 전체 코드로 바꿔서 저장해 보세요.
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인 연차 관리</title>
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📆</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📆</text></svg>">
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f6f9; color: #333; padding: 40px 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 950px; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h1 { text-align: center; margin-bottom: 5px; color: #2c3e50; font-size: 24px; }
+        .season-info { text-align: center; color: #64748b; font-size: 14px; margin-bottom: 25px; font-weight: 500; word-break: keep-all; }
+        
+        .dashboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .card { background: #f8fafc; padding: 15px 10px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .card h3 { font-size: 13px; color: #64748b; margin-bottom: 8px; word-break: keep-all; }
+        .card p { font-size: 22px; font-weight: bold; color: #0f172a; }
+        .card.total p { color: #475569; }
+        .card.used p { color: #dc2626; }
+        .card.remain p { color: #16a34a; }
+        .card.final p { color: #2563eb; }
+
+        .backup-section { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #cbd5e1; }
+        .backup-btns { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+        .btn-backup { background: #64748b; font-size: 13px; padding: 8px 12px; flex: 1; text-align: center; }
+        .btn-backup:hover { background: #475569; }
+        .mobile-import-box { display: flex; gap: 6px; margin-top: 5px; }
+        .mobile-import-box input { flex-grow: 1; padding: 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }
+
+        .settings-section, .input-section { background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #334155; display: flex; align-items: center; gap: 6px; }
+        .form-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .form-group > label { font-size: 14px; color: #475569; }
+
+        input, select, button { padding: 10px 14px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 14px; outline: none; }
+        input:focus, select:focus { border-color: #3b82f6; }
+        button { background: #2563eb; color: #fff; border: none; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+
+        .btn-edit { background: #0ea5e9; }
+        .btn-edit:hover { background: #0284c7; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-success { background: #16a34a; }
+        .btn-success:hover { background: #15803d; }
+
+        .history-grid { display: grid; grid-template-columns: 1fr; gap: 25px; margin-top: 25px; }
+        .table-responsive { width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 12px 8px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f1f5f9; color: #475569; font-weight: 600; }
+        tr:hover { background-color: #f8fafc; }
+        .no-data { text-align: center; padding: 20px; color: #94a3b8; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        .table-input { width: 100%; padding: 6px 10px; font-size: 13px; }
+
+        .badge { display: inline-block; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; }
+        .badge.upcoming { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge.past { background-color: #f1f5f9; color: #475569; }
+        .badge.out-of-season { background-color: #f1f5f9; color: #94a3b8; border: 1px solid #cbd5e1; }
+        .d-day { font-weight: bold; color: #ea580c; margin-left: 2px; margin-right: 2px; }
+        .action-btns { display: flex; gap: 4px; justify-content: center; }
+
+        .mobile-card-list { display: none; }
+
+        @media (max-width: 768px) {
+            body { padding: 15px 10px; }
+            .container { padding: 15px; }
+            h1 { font-size: 20px; }
+            .dashboard { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .card { padding: 12px 5px; }
+            .card h3 { font-size: 12px; }
+            .card p { font-size: 18px; }
+            .form-group { flex-direction: column; align-items: stretch; gap: 8px; }
+            .form-group > label { margin-left: 0 !important; margin-top: 4px; }
+            input, select, button { width: 100% !important; text-align: center; }
+            .mobile-import-box { flex-direction: column; }
+            .table-responsive { display: none; }
+            .mobile-card-list { display: block; margin-top: 10px; }
+            .mobile-item-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+            .mobile-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; }
+            .mobile-item-date { font-weight: bold; font-size: 15px; color: #0f172a; }
+            .mobile-item-body { font-size: 13.5px; color: #334155; margin-bottom: 10px; line-height: 1.5; }
+            .mobile-item-actions { display: flex; gap: 6px; }
+            .mobile-item-actions button { padding: 6px 10px; font-size: 12px; flex: 1; }
+            .mobile-edit-box { display: flex; flex-direction: column; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📅 지안전용 연차 관리</h1>
+    <div class="season-info" id="current-season-text">연차 산정 기간: 계산 중...</div>
+
+    <!-- 대시보드 -->
+    <div class="dashboard">
+        <div class="card total">
+            <h3>선택 시즌 총 연차</h3>
+            <p id="display-total">0개</p>
+        </div>
+        <div class="card used">
+            <h3>시즌 내 사용 연차</h3>
+            <p id="display-used">0개</p>
+        </div>
+        <div class="card remain">
+            <h3>현재 잔여 연차</h3>
+            <p id="display-remain">0개</p>
+        </div>
+        <div class="card final">
+            <h3>최종 예상 잔여</h3>
+            <p id="display-final">0개</p>
+        </div>
+    </div>
+
+    <!-- 백업/복원 -->
+    <div class="backup-section">
+        <div class="backup-btns">
+            <button class="btn-backup" onclick="exportData()">💾 백업 파일 다운로드</button>
+            <button class="btn-backup" style="background:#0284c7;" onclick="alert('폰에서 파일 선택이 안 되면 아래 텍스트창에 붙여넣어 주세요!'); document.getElementById('import-file').click()">📁 파일로 복원</button>
+            <input type="file" id="import-file" accept=".txt" style="display: none;" onchange="importData(event)">
+        </div>
+        <div class="mobile-import-box">
+            <input type="text" id="mobile-text-input" placeholder="모바일용: 복사한 텍스트를 여기에 붙여넣기">
+            <button style="background: #16a34a; font-size: 12px; padding: 8px 12px;" onclick="importFromText()">📋 텍스트로 복원</button>
+        </div>
+    </div>
+
+    <!-- 기본 설정 -->
+    <div class="settings-section">
+        <div class="section-title">⚙️ 연차 기본 정보 설정</div>
+        <div class="form-group">
+            <label for="total-leave-input">매년 부여 개수:</label>
+            <input type="number" id="total-leave-input" min="0" max="100" step="0.5" placeholder="예: 15">
+            
+            <label for="reset-date-input">입사일(리셋일):</label>
+            <input type="text" id="reset-date-input" placeholder="MM-DD 형식 (예: 08-04)" maxlength="5">
+            
+            <button onclick="saveSettings()">설정 및 저장</button>
+        </div>
+    </div>
+
+    <!-- 연차 등록 -->
+    <div class="input-section">
+        <div class="section-title">✍️ 연차 등록 (미리 등록 가능)</div>
+        <div class="form-group">
+            <input type="date" id="leave-date" required>
+            <select id="leave-type">
+                <option value="1">종일 (1.0)</option>
+                <option value="0.5">오전반차 (0.5)</option>
+                <option value="0.5">오후반차 (0.5)</option>
+                <option value="0.25">반반차 (0.25)</option>
+            </select>
+            <input type="text" id="leave-memo" placeholder="사유 (예: 여름휴가, 병원)">
+            <button onclick="addLeaveRecord()">등록하기</button>
+        </div>
+    </div>
+
+    <!-- 내역 목록 -->
+    <div class="history-grid">
+        <div class="history-section">
+            <div class="section-title" style="color: #2563eb;">🚀 다가오는 예정된 연차</div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 15%;">종류</th>
+                            <th style="width: 10%;">차감</th>
+                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 15%;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="upcoming-tbody"></tbody>
+                </table>
+            </div>
+            <div class="mobile-card-list" id="upcoming-mobile-list"></div>
+            <div id="no-upcoming-msg" class="no-data">예정된 휴가 계획이 없습니다. 푹 쉬어보세요!</div>
+        </div>
+
+        <div class="history-section">
+            <div class="section-title" style="color: #475569;">📋 이미 지나간 사용 내역</div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 15%;">종류</th>
+                            <th style="width: 10%;">차감</th>
+                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 15%;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="past-tbody"></tbody>
+                </table>
+            </div>
+            <div class="mobile-card-list" id="past-mobile-list"></div>
+            <div id="no-past-msg" class="no-data">과거에 사용한 연차 내역이 없습니다.</div>
+        </div>
+    </div>
+</div>
+
 <script>
     let totalLeave = parseFloat(localStorage.getItem('totalLeave')) || 15;
     let resetDateStr = localStorage.getItem('resetDateStr') || "08-04";
     let leaveRecords = JSON.parse(localStorage.getItem('leaveRecords')) || [];
-    let selectedSeasonYear = null; // 현재 선택된 시즌 시작 연도
+    let selectedSeasonYear = null;
     let editingId = null;
 
     document.getElementById('total-leave-input').value = totalLeave;
     document.getElementById('reset-date-input').value = resetDateStr;
 
-    // 특정 날짜가 속한 연차 시즌(시작일~종료일) 구하기
     function getLeaveSeasonRange(targetDate = new Date()) {
         const currentYear = targetDate.getFullYear();
         const [resetMonth, resetDay] = resetDateStr.split('-').map(Number);
@@ -26,7 +240,6 @@
         return { start: seasonStart, end: seasonEnd };
     }
 
-    // 시즌 드롭다운 셀렉트박스 생성 및 초기화
     function initSeasonSelector() {
         const today = new Date();
         const currentSeason = getLeaveSeasonRange(today);
@@ -36,16 +249,15 @@
             selectedSeasonYear = currentStartYear;
         }
 
-        // 존재하는 모든 연차 기록의 연도 모으기
         const yearsSet = new Set([currentStartYear - 1, currentStartYear, currentStartYear + 1]);
         leaveRecords.forEach(r => {
-            const rSeason = getLeaveSeasonRange(new Date(r.date));
-            yearsSet.add(rSeason.start.getFullYear());
+            if(r.date) {
+                const rSeason = getLeaveSeasonRange(new Date(r.date));
+                yearsSet.add(rSeason.start.getFullYear());
+            }
         });
 
-        const sortedYears = Array.from(yearsSet).sort((a, b) => b - a); // 최신순 정렬
-
-        // 텍스트 안내 영역을 시즌 선택 Dropdown으로 대체
+        const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
         const seasonInfoEl = document.getElementById('current-season-text');
         
         let selectHtml = `<label for="season-select" style="font-weight:bold; margin-right:8px;">📅 조회할 연차 시즌:</label>`;
@@ -73,6 +285,16 @@
         renderHistory();
     }
 
+    function getSelectedSeasonRange() {
+        const [resetMonth, resetDay] = resetDateStr.split('-').map(Number);
+        const start = new Date(selectedSeasonYear, resetMonth - 1, resetDay, 0, 0, 0, 0);
+        const end = new Date(start);
+        end.setFullYear(start.getFullYear() + 1);
+        end.setDate(end.getDate() - 1);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+    }
+
     function saveSettings() {
         const inputVal = parseFloat(document.getElementById('total-leave-input').value);
         const inputDate = document.getElementById('reset-date-input').value.trim();
@@ -92,20 +314,9 @@
         localStorage.setItem('totalLeave', totalLeave);
         localStorage.setItem('resetDateStr', resetDateStr);
         
-        selectedSeasonYear = null; // 리셋 시 시즌 재계산
+        selectedSeasonYear = null;
         initSeasonSelector();
         saveAndReload();
-    }
-
-    // 선택된 시즌 범위 가져오기
-    function getSelectedSeasonRange() {
-        const [resetMonth, resetDay] = resetDateStr.split('-').map(Number);
-        const start = new Date(selectedSeasonYear, resetMonth - 1, resetDay, 0, 0, 0, 0);
-        const end = new Date(start);
-        end.setFullYear(start.getFullYear() + 1);
-        end.setDate(end.getDate() - 1);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
     }
 
     function updateDashboard() {
@@ -120,7 +331,6 @@
             const recordDate = new Date(record.date);
             recordDate.setHours(0,0,0,0);
 
-            // 선택된 시즌 범위 내의 항목만 집계
             if (recordDate >= season.start && recordDate <= season.end) {
                 if (recordDate >= today) {
                     upcomingLeave += record.amount;
@@ -227,7 +437,6 @@
         leaveRecords.push(newRecord);
         sortRecords();
 
-        // 등록된 날짜의 시즌으로 자동 이동하여 보여주기
         const addedSeason = getLeaveSeasonRange(new Date(dateInput));
         selectedSeasonYear = addedSeason.start.getFullYear();
         initSeasonSelector();
@@ -313,12 +522,10 @@
         let upcomingCount = 0;
         let pastCount = 0;
 
-        // 선택된 시즌에 해당하는 내역만 필터링해서 출력
         leaveRecords.forEach(record => {
             const recordDate = new Date(record.date);
             recordDate.setHours(0,0,0,0);
 
-            // 해당 시즌에 포함되는 기록만 랜더링
             if (recordDate < season.start || recordDate > season.end) return;
 
             const isUpcoming = recordDate >= today;
@@ -332,7 +539,7 @@
                 </select>
             `;
 
-            // --- PC용 테이블 뷰 ---
+            // PC 테이블 뷰
             const tr = document.createElement('tr');
             tr.id = `row-${record.id}`;
 
@@ -392,7 +599,7 @@
                 }
             }
 
-            // --- 모바일용 카드 뷰 ---
+            // 모바일 카드 뷰
             const mDiv = document.createElement('div');
             mDiv.className = 'mobile-item-card';
             mDiv.id = `m-row-${record.id}`;
@@ -462,9 +669,12 @@
         document.getElementById('no-past-msg').style.display = pastCount === 0 ? 'block' : 'none';
     }
 
-    // 초기 실행
+    // 초기화 및 실행
     initSeasonSelector();
     updateDashboard();
     renderHistory();
 </script>
+
+</body>
+</html>
 
