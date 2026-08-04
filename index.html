@@ -99,11 +99,11 @@
     <!-- 대시보드 -->
     <div class="dashboard">
         <div class="card total">
-            <h3>선택 시즌 총 연차</h3>
+            <h3>시즌 부여 연차</h3>
             <p id="display-total">0개</p>
         </div>
         <div class="card used">
-            <h3>시즌 내 사용 연차</h3>
+            <h3>시즌 사용 연차</h3>
             <p id="display-used">0개</p>
         </div>
         <div class="card remain">
@@ -131,24 +131,24 @@
 
     <!-- 기본 설정 -->
     <div class="settings-section">
-        <div class="section-title">⚙️ 연차 기본 정보 설정</div>
+        <div class="section-title">⚙️ 입사일 정보 (법정 연차 자동 계산)</div>
         <div class="form-group">
-            <label for="total-leave-input">매년 부여 개수:</label>
-            <input type="number" id="total-leave-input" min="0" max="100" step="0.5" placeholder="예: 15">
-            
-            <label for="reset-date-input">입사일(리셋일):</label>
-            <input type="text" id="reset-date-input" placeholder="MM-DD 형식 (예: 08-04)" maxlength="5">
-            
-            <button onclick="saveSettings()">설정 및 저장</button>
+            <label for="join-date-input">입사일 선택:</label>
+            <input type="date" id="join-date-input" value="2025-08-04">
+            <button onclick="saveSettings()">입사일 기준 업데이트</button>
         </div>
     </div>
 
-    <!-- 연차 등록 -->
+    <!-- 연차 등록 (연속 등록 지원) -->
     <div class="input-section">
-        <div class="section-title">✍️ 연차 등록 (미리 등록 가능)</div>
+        <div class="section-title">✍️ 연차 등록 (기간 연속 지정 가능)</div>
         <div class="form-group">
-            <input type="date" id="leave-date" required>
-            <select id="leave-type">
+            <label>시작일:</label>
+            <input type="date" id="leave-start-date" required onchange="autoFillEndDate()">
+            <label>종료일:</label>
+            <input type="date" id="leave-end-date" required>
+            
+            <select id="leave-type" onchange="toggleEndDateInput()">
                 <option value="1">종일 (1.0)</option>
                 <option value="0.5">오전반차 (0.5)</option>
                 <option value="0.5">오후반차 (0.5)</option>
@@ -167,10 +167,10 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 22%;">날짜</th>
                             <th style="width: 15%;">종류</th>
                             <th style="width: 10%;">차감</th>
-                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 38%;">사유 및 상태</th>
                             <th style="width: 15%;">관리</th>
                         </tr>
                     </thead>
@@ -187,10 +187,10 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 18%;">날짜</th>
+                            <th style="width: 22%;">날짜</th>
                             <th style="width: 15%;">종류</th>
                             <th style="width: 10%;">차감</th>
-                            <th style="width: 42%;">사유 및 상태</th>
+                            <th style="width: 38%;">사유 및 상태</th>
                             <th style="width: 15%;">관리</th>
                         </tr>
                     </thead>
@@ -204,20 +204,62 @@
 </div>
 
 <script>
-    let totalLeave = parseFloat(localStorage.getItem('totalLeave')) || 15;
-    let resetDateStr = localStorage.getItem('resetDateStr') || "08-04";
+    let joinDateStr = localStorage.getItem('joinDateStr') || "2025-08-04";
     let leaveRecords = JSON.parse(localStorage.getItem('leaveRecords')) || [];
     let selectedSeasonYear = null;
     let editingId = null;
 
-    document.getElementById('total-leave-input').value = totalLeave;
-    document.getElementById('reset-date-input').value = resetDateStr;
+    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // YYYY-MM-DD -> YYYY-MM-DD (요일) 변환 함수
+    function formatDateWithDay(dateStr) {
+        if (!dateStr) return '';
+        const dateObj = new Date(dateStr);
+        const dayName = weekDays[dateObj.getDay()];
+        return `${dateStr} (${dayName})`;
+    }
+
+    document.getElementById('join-date-input').value = joinDateStr;
+
+    function autoFillEndDate() {
+        const startVal = document.getElementById('leave-start-date').value;
+        const endInput = document.getElementById('leave-end-date');
+        if (startVal && (!endInput.value || endInput.value < startVal)) {
+            endInput.value = startVal;
+        }
+    }
+
+    function toggleEndDateInput() {
+        const leaveType = document.getElementById('leave-type').value;
+        const endDateInput = document.getElementById('leave-end-date');
+        if (leaveType !== "1") {
+            endDateInput.value = document.getElementById('leave-start-date').value;
+            endDateInput.disabled = true;
+        } else {
+            endDateInput.disabled = false;
+        }
+    }
+
+    function calculateLegalLeaveCount(seasonStartYear) {
+        const joinDate = new Date(joinDateStr);
+        const joinYear = joinDate.getFullYear();
+        const yearsOfService = seasonStartYear - joinYear;
+
+        if (yearsOfService < 0) return 0;
+        if (yearsOfService === 0) return 11;
+        
+        const additionalDays = Math.floor((yearsOfService - 1) / 2);
+        return Math.min(15 + additionalDays, 25);
+    }
 
     function getLeaveSeasonRange(targetDate = new Date()) {
+        const joinDate = new Date(joinDateStr);
+        const resetMonth = joinDate.getMonth();
+        const resetDay = joinDate.getDate();
+
         const currentYear = targetDate.getFullYear();
-        const [resetMonth, resetDay] = resetDateStr.split('-').map(Number);
+        let seasonStart = new Date(currentYear, resetMonth, resetDay, 0, 0, 0, 0);
         
-        let seasonStart = new Date(currentYear, resetMonth - 1, resetDay, 0, 0, 0, 0);
         if (targetDate < seasonStart) {
             seasonStart.setFullYear(currentYear - 1);
         }
@@ -250,19 +292,23 @@
         const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
         const seasonInfoEl = document.getElementById('current-season-text');
         
-        let selectHtml = `<label for="season-select" style="font-weight:bold; margin-right:8px;">📅 조회할 연차 시즌:</label>`;
+        let selectHtml = `<label for="season-select" style="font-weight:bold; margin-right:8px;">📅 연차 산정 시즌:</label>`;
         selectHtml += `<select id="season-select" onchange="changeSeason(this.value)" style="padding:6px 12px; font-size:14px; font-weight:bold; border-color:#2563eb; color:#2563eb;">`;
 
-        const [rMonth, rDay] = resetDateStr.split('-');
+        const joinDate = new Date(joinDateStr);
+        const rMonth = String(joinDate.getMonth() + 1).padStart(2, '0');
+        const rDay = String(joinDate.getDate()).padStart(2, '0');
+
         sortedYears.forEach(y => {
             const sStart = `${y}-${rMonth}-${rDay}`;
-            const endYearDate = new Date(y + 1, parseInt(rMonth) - 1, parseInt(rDay) - 1);
+            const endYearDate = new Date(y + 1, joinDate.getMonth(), joinDate.getDate() - 1);
             const sEnd = endYearDate.toISOString().split('T')[0];
             
             const isCurrent = (y === currentStartYear) ? " (현재 시즌)" : "";
             const isSelected = (y === selectedSeasonYear) ? "selected" : "";
+            const legalCount = calculateLegalLeaveCount(y);
             
-            selectHtml += `<option value="${y}" ${isSelected}>${sStart} ~ ${sEnd}${isCurrent}</option>`;
+            selectHtml += `<option value="${y}" ${isSelected}>${sStart} ~ ${sEnd} [부여: ${legalCount}개]${isCurrent}</option>`;
         });
 
         selectHtml += `</select>`;
@@ -276,8 +322,8 @@
     }
 
     function getSelectedSeasonRange() {
-        const [resetMonth, resetDay] = resetDateStr.split('-').map(Number);
-        const start = new Date(selectedSeasonYear, resetMonth - 1, resetDay, 0, 0, 0, 0);
+        const joinDate = new Date(joinDateStr);
+        const start = new Date(selectedSeasonYear, joinDate.getMonth(), joinDate.getDate(), 0, 0, 0, 0);
         const end = new Date(start);
         end.setFullYear(start.getFullYear() + 1);
         end.setDate(end.getDate() - 1);
@@ -286,33 +332,27 @@
     }
 
     function saveSettings() {
-        const inputVal = parseFloat(document.getElementById('total-leave-input').value);
-        const inputDate = document.getElementById('reset-date-input').value.trim();
-        const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
-
-        if (isNaN(inputVal) || inputVal < 0) {
-            alert('올바른 연차 개수를 입력해주세요.');
-            return;
-        }
-        if (!dateRegex.test(inputDate)) {
-            alert('입사일(리셋일)을 MM-DD 형식(예: 08-04)으로 입력해주세요.');
+        const inputDate = document.getElementById('join-date-input').value;
+        if (!inputDate) {
+            alert('올바른 입사일을 선택해주세요.');
             return;
         }
 
-        totalLeave = inputVal;
-        resetDateStr = inputDate;
-        localStorage.setItem('totalLeave', totalLeave);
-        localStorage.setItem('resetDateStr', resetDateStr);
+        joinDateStr = inputDate;
+        localStorage.setItem('joinDateStr', joinDateStr);
         
         selectedSeasonYear = null;
         initSeasonSelector();
         saveAndReload();
+        alert('입사일 정보가 갱신되어 연차가 자동 재계산되었습니다.');
     }
 
     function updateDashboard() {
         const today = new Date();
         today.setHours(0,0,0,0);
         const season = getSelectedSeasonRange();
+        
+        const totalLeave = calculateLegalLeaveCount(selectedSeasonYear);
 
         let pastUsedLeave = 0;
         let upcomingLeave = 0;
@@ -339,101 +379,66 @@
         document.getElementById('display-final').innerText = `${finalExpectedRemain}개`;
     }
 
-    function exportData() {
-        const dataObj = { totalLeave: totalLeave, resetDateStr: resetDateStr, leaveRecords: leaveRecords };
-        const dataStr = JSON.stringify(dataObj, null, 2);
-        const blob = new Blob([dataStr], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const todayStr = new Date().toISOString().split('T')[0];
-        link.href = url;
-        link.download = `leave_data_${todayStr}.txt`;
-        link.click();
-        URL.revokeObjectURL(url);
-    }
-
-    function processParsedData(parsedData) {
-        if (parsedData.totalLeave !== undefined && parsedData.resetDateStr && Array.isArray(parsedData.leaveRecords)) {
-            if (confirm("기존 연차 데이터를 지우고 새 데이터로 덮어씌우시겠습니까?")) {
-                totalLeave = parsedData.totalLeave;
-                resetDateStr = parsedData.resetDateStr;
-                leaveRecords = parsedData.leaveRecords;
-
-                localStorage.setItem('totalLeave', totalLeave);
-                localStorage.setItem('resetDateStr', resetDateStr);
-                localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
-
-                document.getElementById('total-leave-input').value = totalLeave;
-                document.getElementById('reset-date-input').value = resetDateStr;
-
-                initSeasonSelector();
-                saveAndReload();
-                alert("데이터가 완벽하게 복원되었습니다! 🎉");
-                return true;
-            }
-        } else {
-            alert("올바른 연차 데이터 형식이 아닙니다.");
-        }
-        return false;
-    }
-
-    function importData(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                processParsedData(parsedData);
-            } catch (err) {
-                alert("파일을 읽는 중 오류가 발생했습니다.");
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    }
-
-    function importFromText() {
-        const textInput = document.getElementById('mobile-text-input').value.trim();
-        if (!textInput) {
-            alert("복사한 백업 텍스트 내용을 먼저 입력창에 붙여넣어 주세요!");
-            return;
-        }
-        try {
-            const parsedData = JSON.parse(textInput);
-            const success = processParsedData(parsedData);
-            if(success) {
-                document.getElementById('mobile-text-input').value = '';
-            }
-        } catch (err) {
-            alert("텍스트 형식이 잘못되었습니다.");
-        }
-    }
-
     function addLeaveRecord() {
-        const dateInput = document.getElementById('leave-date').value;
+        const startDateVal = document.getElementById('leave-start-date').value;
+        let endDateVal = document.getElementById('leave-end-date').value;
         const typeSelect = document.getElementById('leave-type');
         const typeText = typeSelect.options[typeSelect.selectedIndex].text.split(' ')[0];
         const amount = parseFloat(typeSelect.value);
         const memo = document.getElementById('leave-memo').value.trim() || '없음';
 
-        if (!dateInput) {
-            alert('날짜를 선택해 주세요.');
+        if (!startDateVal) {
+            alert('시작 날짜를 선택해 주세요.');
             return;
         }
 
-        const newRecord = { id: Date.now(), date: dateInput, type: typeText, amount: amount, memo: memo };
-        leaveRecords.push(newRecord);
-        sortRecords();
+        if (amount !== 1 || !endDateVal) {
+            endDateVal = startDateVal;
+        }
 
-        const addedSeason = getLeaveSeasonRange(new Date(dateInput));
+        const start = new Date(startDateVal);
+        const end = new Date(endDateVal);
+
+        if (start > end) {
+            alert('종료일은 시작일보다 이전일 수 없습니다.');
+            return;
+        }
+
+        let addedCount = 0;
+        let curr = new Date(start);
+
+        while (curr <= end) {
+            const dayOfWeek = curr.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                const dateStr = curr.toISOString().split('T')[0];
+                const newRecord = { 
+                    id: Date.now() + Math.random(), 
+                    date: dateStr, 
+                    type: typeText, 
+                    amount: amount, 
+                    memo: memo 
+                };
+                leaveRecords.push(newRecord);
+                addedCount++;
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        if (addedCount === 0) {
+            alert('선택하신 기간 내에 평일이 없어 연차가 등록되지 않았습니다 (주말 제외).');
+            return;
+        }
+
+        sortRecords();
+        const addedSeason = getLeaveSeasonRange(new Date(startDateVal));
         selectedSeasonYear = addedSeason.start.getFullYear();
         initSeasonSelector();
 
         saveAndReload();
-        document.getElementById('leave-date').value = '';
+        document.getElementById('leave-start-date').value = '';
+        document.getElementById('leave-end-date').value = '';
         document.getElementById('leave-memo').value = '';
+        alert(`총 ${addedCount}일의 연차가 성공적으로 등록되었습니다 (주말 제외).`);
     }
 
     function sortRecords() {
@@ -521,6 +526,8 @@
             const isUpcoming = recordDate >= today;
             if (isUpcoming) upcomingCount++; else pastCount++;
 
+            const formattedDate = formatDateWithDay(record.date);
+
             const getSelectHtml = (currentAmount, prefix="") => `
                 <select class="table-input ${prefix}edit-type">
                     <option value="1" ${currentAmount === 1 ? 'selected' : ''}>종일 (1.0)</option>
@@ -555,7 +562,7 @@
                     const dDayText = diffDays === 0 ? "Today" : `D-${diffDays}`;
 
                     tr.innerHTML = `
-                        <td><b style="color: #2563eb;">${record.date}</b></td>
+                        <td><b style="color: #2563eb;">${formattedDate}</b></td>
                         <td>${record.type}</td>
                         <td><strong>${record.amount}</strong></td>
                         <td style="text-align: left; padding-left: 10px;">
@@ -572,7 +579,7 @@
                     upcomingTbody.appendChild(tr);
                 } else {
                     tr.innerHTML = `
-                        <td style="color: #64748b;">${record.date}</td>
+                        <td style="color: #64748b;">${formattedDate}</td>
                         <td>${record.type}</td>
                         <td>${record.amount}</td>
                         <td style="text-align: left; padding-left: 10px; color: #64748b;">
@@ -619,7 +626,7 @@
 
                     mDiv.innerHTML = `
                         <div class="mobile-item-header">
-                            <span class="mobile-item-date" style="color:#2563eb;">${record.date}</span>
+                            <span class="mobile-item-date" style="color:#2563eb;">${formattedDate}</span>
                             <div>
                                 <span class="badge upcoming">예정</span>
                                 <span class="d-day">${dDayText}</span>
@@ -638,7 +645,7 @@
                 } else {
                     mDiv.innerHTML = `
                         <div class="mobile-item-header">
-                            <span class="mobile-item-date" style="color:#64748b;">${record.date}</span>
+                            <span class="mobile-item-date" style="color:#64748b;">${formattedDate}</span>
                             <span class="badge past">완료</span>
                         </div>
                         <div class="mobile-item-body" style="color:#64748b;">
@@ -659,7 +666,76 @@
         document.getElementById('no-past-msg').style.display = pastCount === 0 ? 'block' : 'none';
     }
 
-    // 초기화 및 실행
+    function exportData() {
+        const dataObj = { joinDateStr: joinDateStr, leaveRecords: leaveRecords };
+        const dataStr = JSON.stringify(dataObj, null, 2);
+        const blob = new Blob([dataStr], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const todayStr = new Date().toISOString().split('T')[0];
+        link.href = url;
+        link.download = `leave_data_${todayStr}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function processParsedData(parsedData) {
+        if (parsedData.joinDateStr && Array.isArray(parsedData.leaveRecords)) {
+            if (confirm("기존 연차 데이터를 지우고 새 데이터로 덮어씌우시겠습니까?")) {
+                joinDateStr = parsedData.joinDateStr;
+                leaveRecords = parsedData.leaveRecords;
+
+                localStorage.setItem('joinDateStr', joinDateStr);
+                localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
+
+                document.getElementById('join-date-input').value = joinDateStr;
+
+                initSeasonSelector();
+                saveAndReload();
+                alert("데이터가 완벽하게 복원되었습니다! 🎉");
+                return true;
+            }
+        } else {
+            alert("올바른 연차 데이터 형식이 아닙니다.");
+        }
+        return false;
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsedData = JSON.parse(e.target.result);
+                processParsedData(parsedData);
+            } catch (err) {
+                alert("파일을 읽는 중 오류가 발생했습니다.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
+    function importFromText() {
+        const textInput = document.getElementById('mobile-text-input').value.trim();
+        if (!textInput) {
+            alert("복사한 백업 텍스트 내용을 먼저 입력창에 붙여넣어 주세요!");
+            return;
+        }
+        try {
+            const parsedData = JSON.parse(textInput);
+            const success = processParsedData(parsedData);
+            if(success) {
+                document.getElementById('mobile-text-input').value = '';
+            }
+        } catch (err) {
+            alert("텍스트 형식이 잘못되었습니다.");
+        }
+    }
+
+    // 초기 실행
     initSeasonSelector();
     updateDashboard();
     renderHistory();
@@ -667,4 +743,3 @@
 
 </body>
 </html>
-
