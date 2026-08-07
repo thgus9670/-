@@ -203,33 +203,94 @@
     </div>
 </div>
 
-<script>
+<!-- Firebase SDK 모듈 및 로직 통합 스크립트 -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 1. Firebase 설정 (API Key와 App ID는 파이어베이스 콘솔의 실제 값으로 채워주세요!)
+   const firebaseConfig = {
+  apiKey: "AIzaSyBLgvUxvC8lNZMM7nXPIy6Z3bPk1VtSsQU",
+  authDomain: "my-leave-app-d116e.firebaseapp.com",
+  projectId: "my-leave-app-d116e",
+  storageBucket: "my-leave-app-d116e.firebasestorage.app",
+  messagingSenderId: "643349288956",
+  appId: "1:643349288956:web:c75f41489bfca627b44479"
+};
+
+
+    // 2. Firebase 및 Firestore 초기화
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const docRef = doc(db, "leaveManager", "jianData");
+
+    // 3. 전역 데이터 변수
     let joinDateStr = localStorage.getItem('joinDateStr') || "2025-08-04";
     let leaveRecords = JSON.parse(localStorage.getItem('leaveRecords')) || [];
     let selectedSeasonYear = null;
     let editingId = null;
+    let isRemoteUpdate = false; // Firestore 원격 업데이트 감지 플래그
 
     const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // YYYY-MM-DD -> YYYY-MM-DD (요일) 변환 함수
-    function formatDateWithDay(dateStr) {
+    // 4. Firestore 실시간 감지 (클라우드 -> 로컬 자동 반영)
+    onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            isRemoteUpdate = true;
+            
+            if (data.joinDateStr) {
+                joinDateStr = data.joinDateStr;
+                localStorage.setItem('joinDateStr', joinDateStr);
+                const joinInput = document.getElementById('join-date-input');
+                if (joinInput) joinInput.value = joinDateStr;
+            }
+            if (data.leaveRecords) {
+                leaveRecords = data.leaveRecords;
+                localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
+            }
+            
+            initSeasonSelector();
+            updateDashboard();
+            renderHistory();
+            isRemoteUpdate = false;
+        }
+    });
+
+    // 5. 로컬 수정사항 클라우드 저장 함수 (로컬 -> 클라우드 전송)
+    async function syncToFirebase() {
+        if (isRemoteUpdate) return;
+        try {
+            await setDoc(docRef, {
+                joinDateStr: joinDateStr,
+                leaveRecords: leaveRecords,
+                lastUpdated: new Date().toISOString()
+            });
+        } catch (err) {
+            console.error("Firebase 동기화 실패:", err);
+        }
+    }
+
+    // YYYY-MM-DD -> YYYY-MM-DD (요일) 변환
+    window.formatDateWithDay = function(dateStr) {
         if (!dateStr) return '';
         const dateObj = new Date(dateStr);
         const dayName = weekDays[dateObj.getDay()];
         return `${dateStr} (${dayName})`;
-    }
+    };
 
-    document.getElementById('join-date-input').value = joinDateStr;
+    const joinInputEl = document.getElementById('join-date-input');
+    if (joinInputEl) joinInputEl.value = joinDateStr;
 
-    function autoFillEndDate() {
+    window.autoFillEndDate = function() {
         const startVal = document.getElementById('leave-start-date').value;
         const endInput = document.getElementById('leave-end-date');
         if (startVal && (!endInput.value || endInput.value < startVal)) {
             endInput.value = startVal;
         }
-    }
+    };
 
-    function toggleEndDateInput() {
+    window.toggleEndDateInput = function() {
         const leaveType = document.getElementById('leave-type').value;
         const endDateInput = document.getElementById('leave-end-date');
         if (leaveType !== "1") {
@@ -238,7 +299,7 @@
         } else {
             endDateInput.disabled = false;
         }
-    }
+    };
 
     function calculateLegalLeaveCount(seasonStartYear) {
         const joinDate = new Date(joinDateStr);
@@ -291,6 +352,7 @@
 
         const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
         const seasonInfoEl = document.getElementById('current-season-text');
+        if (!seasonInfoEl) return;
         
         let selectHtml = `<label for="season-select" style="font-weight:bold; margin-right:8px;">📅 연차 산정 시즌:</label>`;
         selectHtml += `<select id="season-select" onchange="changeSeason(this.value)" style="padding:6px 12px; font-size:14px; font-weight:bold; border-color:#2563eb; color:#2563eb;">`;
@@ -315,11 +377,11 @@
         seasonInfoEl.innerHTML = selectHtml;
     }
 
-    function changeSeason(year) {
+    window.changeSeason = function(year) {
         selectedSeasonYear = parseInt(year);
         updateDashboard();
         renderHistory();
-    }
+    };
 
     function getSelectedSeasonRange() {
         const joinDate = new Date(joinDateStr);
@@ -331,7 +393,7 @@
         return { start, end };
     }
 
-    function saveSettings() {
+    window.saveSettings = function() {
         const inputDate = document.getElementById('join-date-input').value;
         if (!inputDate) {
             alert('올바른 입사일을 선택해주세요.');
@@ -345,7 +407,7 @@
         initSeasonSelector();
         saveAndReload();
         alert('입사일 정보가 갱신되어 연차가 자동 재계산되었습니다.');
-    }
+    };
 
     function updateDashboard() {
         const today = new Date();
@@ -373,13 +435,13 @@
         const currentRemain = totalLeave - pastUsedLeave;
         const finalExpectedRemain = currentRemain - upcomingLeave;
 
-        document.getElementById('display-total').innerText = `${totalLeave}개`;
-        document.getElementById('display-used').innerText = `${pastUsedLeave}개`;
-        document.getElementById('display-remain').innerText = `${currentRemain}개`;
-        document.getElementById('display-final').innerText = `${finalExpectedRemain}개`;
+        if (document.getElementById('display-total')) document.getElementById('display-total').innerText = `${totalLeave}개`;
+        if (document.getElementById('display-used')) document.getElementById('display-used').innerText = `${pastUsedLeave}개`;
+        if (document.getElementById('display-remain')) document.getElementById('display-remain').innerText = `${currentRemain}개`;
+        if (document.getElementById('display-final')) document.getElementById('display-final').innerText = `${finalExpectedRemain}개`;
     }
 
-    function addLeaveRecord() {
+    window.addLeaveRecord = function() {
         const startDateVal = document.getElementById('leave-start-date').value;
         let endDateVal = document.getElementById('leave-end-date').value;
         const typeSelect = document.getElementById('leave-type');
@@ -439,7 +501,7 @@
         document.getElementById('leave-end-date').value = '';
         document.getElementById('leave-memo').value = '';
         alert(`총 ${addedCount}일의 연차가 성공적으로 등록되었습니다 (주말 제외).`);
-    }
+    };
 
     function sortRecords() {
         leaveRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -449,20 +511,21 @@
         localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
         updateDashboard();
         renderHistory();
+        syncToFirebase(); // Firebase 클라우드 자동 동기화
     }
 
-    function deleteRecord(id) {
+    window.deleteRecord = function(id) {
         if (confirm('이 연차 기록을 삭제하시겠습니까?')) {
             leaveRecords = leaveRecords.filter(record => record.id !== id);
             initSeasonSelector();
             saveAndReload();
         }
-    }
+    };
 
-    function startEdit(id) { editingId = id; renderHistory(); }
-    function cancelEdit() { editingId = null; renderHistory(); }
+    window.startEdit = function(id) { editingId = id; renderHistory(); };
+    window.cancelEdit = function() { editingId = null; renderHistory(); };
 
-    function saveEdit(id, isMobile = false) {
+    window.saveEdit = function(id, isMobile = false) {
         let newDate, newTypeText, newAmount, newMemo;
         
         if(isMobile) {
@@ -497,18 +560,20 @@
         sortRecords();
         initSeasonSelector();
         saveAndReload();
-    }
+    };
 
     function renderHistory() {
         const upcomingTbody = document.getElementById('upcoming-tbody');
         const pastTbody = document.getElementById('past-tbody');
+        if (!upcomingTbody || !pastTbody) return;
+        
         upcomingTbody.innerHTML = '';
         pastTbody.innerHTML = '';
 
         const upcomingMobileList = document.getElementById('upcoming-mobile-list');
         const pastMobileList = document.getElementById('past-mobile-list');
-        upcomingMobileList.innerHTML = '';
-        pastMobileList.innerHTML = '';
+        if (upcomingMobileList) upcomingMobileList.innerHTML = '';
+        if (pastMobileList) pastMobileList.innerHTML = '';
 
         const today = new Date();
         today.setHours(0,0,0,0);
@@ -597,76 +662,78 @@
             }
 
             // 모바일 카드 뷰
-            const mDiv = document.createElement('div');
-            mDiv.className = 'mobile-item-card';
-            mDiv.id = `m-row-${record.id}`;
+            if (upcomingMobileList && pastMobileList) {
+                const mDiv = document.createElement('div');
+                mDiv.className = 'mobile-item-card';
+                mDiv.id = `m-row-${record.id}`;
 
-            if (editingId === record.id) {
-                mDiv.innerHTML = `
-                    <div class="mobile-edit-box">
-                        <label style="font-size:12px; font-weight:bold;">날짜 변경</label>
-                        <input type="date" class="table-input m-edit-date" value="${record.date}">
-                        <label style="font-size:12px; font-weight:bold;">종류 변경</label>
-                        ${getSelectHtml(record.amount, "m-")}
-                        <label style="font-size:12px; font-weight:bold;">사유 변경</label>
-                        <input type="text" class="table-input m-edit-memo" value="${record.memo}">
-                        <div class="mobile-item-actions" style="margin-top:5px;">
-                            <button class="btn-success" onclick="saveEdit(${record.id}, true)">저장</button>
-                            <button style="background: #64748b;" onclick="cancelEdit()">취소</button>
-                        </div>
-                    </div>
-                `;
-                if (isUpcoming) upcomingMobileList.appendChild(mDiv);
-                else pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
-            } else {
-                if (isUpcoming) {
-                    const diffTime = recordDate - today;
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    const dDayText = diffDays === 0 ? "Today" : `D-${diffDays}`;
-
+                if (editingId === record.id) {
                     mDiv.innerHTML = `
-                        <div class="mobile-item-header">
-                            <span class="mobile-item-date" style="color:#2563eb;">${formattedDate}</span>
-                            <div>
-                                <span class="badge upcoming">예정</span>
-                                <span class="d-day">${dDayText}</span>
+                        <div class="mobile-edit-box">
+                            <label style="font-size:12px; font-weight:bold;">날짜 변경</label>
+                            <input type="date" class="table-input m-edit-date" value="${record.date}">
+                            <label style="font-size:12px; font-weight:bold;">종류 변경</label>
+                            ${getSelectHtml(record.amount, "m-")}
+                            <label style="font-size:12px; font-weight:bold;">사유 변경</label>
+                            <input type="text" class="table-input m-edit-memo" value="${record.memo}">
+                            <div class="mobile-item-actions" style="margin-top:5px;">
+                                <button class="btn-success" onclick="saveEdit(${record.id}, true)">저장</button>
+                                <button style="background: #64748b;" onclick="cancelEdit()">취소</button>
                             </div>
                         </div>
-                        <div class="mobile-item-body">
-                            📢 <b>${record.type} (${record.amount}개 차감)</b><br>
-                            💬 사유: ${record.memo}
-                        </div>
-                        <div class="mobile-item-actions">
-                            <button class="btn-edit" onclick="startEdit(${record.id})">수정</button>
-                            <button class="btn-danger" onclick="deleteRecord(${record.id})">취소</button>
-                        </div>
                     `;
-                    upcomingMobileList.appendChild(mDiv);
+                    if (isUpcoming) upcomingMobileList.appendChild(mDiv);
+                    else pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
                 } else {
-                    mDiv.innerHTML = `
-                        <div class="mobile-item-header">
-                            <span class="mobile-item-date" style="color:#64748b;">${formattedDate}</span>
-                            <span class="badge past">완료</span>
-                        </div>
-                        <div class="mobile-item-body" style="color:#64748b;">
-                            📢 <b>${record.type} (${record.amount}개 차감)</b><br>
-                            💬 사유: ${record.memo}
-                        </div>
-                        <div class="mobile-item-actions">
-                            <button class="btn-edit" style="opacity:0.8;" onclick="startEdit(${record.id})">수정</button>
-                            <button class="btn-danger" style="opacity:0.7;" onclick="deleteRecord(${record.id})">삭제</button>
-                        </div>
-                    `;
-                    pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
+                    if (isUpcoming) {
+                        const diffTime = recordDate - today;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        const dDayText = diffDays === 0 ? "Today" : `D-${diffDays}`;
+
+                        mDiv.innerHTML = `
+                            <div class="mobile-item-header">
+                                <span class="mobile-item-date" style="color:#2563eb;">${formattedDate}</span>
+                                <div>
+                                    <span class="badge upcoming">예정</span>
+                                    <span class="d-day">${dDayText}</span>
+                                </div>
+                            </div>
+                            <div class="mobile-item-body">
+                                📢 <b>${record.type} (${record.amount}개 차감)</b><br>
+                                💬 사유: ${record.memo}
+                            </div>
+                            <div class="mobile-item-actions">
+                                <button class="btn-edit" onclick="startEdit(${record.id})">수정</button>
+                                <button class="btn-danger" onclick="deleteRecord(${record.id})">취소</button>
+                            </div>
+                        `;
+                        upcomingMobileList.appendChild(mDiv);
+                    } else {
+                        mDiv.innerHTML = `
+                            <div class="mobile-item-header">
+                                <span class="mobile-item-date" style="color:#64748b;">${formattedDate}</span>
+                                <span class="badge past">완료</span>
+                            </div>
+                            <div class="mobile-item-body" style="color:#64748b;">
+                                📢 <b>${record.type} (${record.amount}개 차감)</b><br>
+                                💬 사유: ${record.memo}
+                            </div>
+                            <div class="mobile-item-actions">
+                                <button class="btn-edit" style="opacity:0.8;" onclick="startEdit(${record.id})">수정</button>
+                                <button class="btn-danger" style="opacity:0.7;" onclick="deleteRecord(${record.id})">삭제</button>
+                            </div>
+                        `;
+                        pastMobileList.insertBefore(mDiv, pastMobileList.firstChild);
+                    }
                 }
             }
         });
 
-        document.getElementById('no-upcoming-msg').style.display = upcomingCount === 0 ? 'block' : 'none';
-        document.getElementById('no-past-msg').style.display = pastCount === 0 ? 'block' : 'none';
+        if (document.getElementById('no-upcoming-msg')) document.getElementById('no-upcoming-msg').style.display = upcomingCount === 0 ? 'block' : 'none';
+        if (document.getElementById('no-past-msg')) document.getElementById('no-past-msg').style.display = pastCount === 0 ? 'block' : 'none';
     }
 
-    function exportData() {
+    window.exportData = function() {
         const dataObj = { joinDateStr: joinDateStr, leaveRecords: leaveRecords };
         const dataStr = JSON.stringify(dataObj, null, 2);
         const blob = new Blob([dataStr], { type: "text/plain;charset=utf-8" });
@@ -677,7 +744,7 @@
         link.download = `leave_data_${todayStr}.txt`;
         link.click();
         URL.revokeObjectURL(url);
-    }
+    };
 
     function processParsedData(parsedData) {
         if (parsedData.joinDateStr && Array.isArray(parsedData.leaveRecords)) {
@@ -688,7 +755,8 @@
                 localStorage.setItem('joinDateStr', joinDateStr);
                 localStorage.setItem('leaveRecords', JSON.stringify(leaveRecords));
 
-                document.getElementById('join-date-input').value = joinDateStr;
+                const joinInput = document.getElementById('join-date-input');
+                if (joinInput) joinInput.value = joinDateStr;
 
                 initSeasonSelector();
                 saveAndReload();
@@ -701,7 +769,7 @@
         return false;
     }
 
-    function importData(event) {
+    window.importData = function(event) {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -716,9 +784,9 @@
         };
         reader.readAsText(file);
         event.target.value = '';
-    }
+    };
 
-    function importFromText() {
+    window.importFromText = function() {
         const textInput = document.getElementById('mobile-text-input').value.trim();
         if (!textInput) {
             alert("복사한 백업 텍스트 내용을 먼저 입력창에 붙여넣어 주세요!");
@@ -733,7 +801,7 @@
         } catch (err) {
             alert("텍스트 형식이 잘못되었습니다.");
         }
-    }
+    };
 
     // 초기 실행
     initSeasonSelector();
